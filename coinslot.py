@@ -15,12 +15,14 @@ total_value = 0.0
 pulse_count = 0
 last_pulse_time = 0
 
-# Define coin values (adjust these based on your calibration)
-# Number of pulses : coin value
+# Define peso values based on your H6 calibration
 coin_values = {
-    1: 0.25,  # Quarter or whatever denomination you program
-    2: 0.50,
-    3: 1.00
+    1: 1.00,    # H1: 1 peso coin (new)
+    1: 1.00,    # H2: 1 peso coin (old)
+    5: 5.00,    # H3: 5 peso coin (new)
+    5: 5.00,    # H4: 5 peso coin (old)
+    10: 10.00,   # H5: 10 peso coin (new)
+    10: 10.00    # H6: 10 peso coin (old)
 }
 
 try:
@@ -40,7 +42,7 @@ try:
                     if pulse_count in coin_values:
                         coin_value = coin_values[pulse_count]
                         total_value += coin_value
-                        print(f"Coin detected: ${coin_value:.2f}, Total: ${total_value:.2f}")
+                        print(f"Coin detected: ₱{coin_value:.2f}, Total: ₱{total_value:.2f}")
                     else:
                         print(f"Unknown coin: {pulse_count} pulses")
                 pulse_count = 0
@@ -57,7 +59,7 @@ try:
             if pulse_count in coin_values:
                 coin_value = coin_values[pulse_count]
                 total_value += coin_value
-                print(f"Coin detected: ${coin_value:.2f}, Total: ${total_value:.2f}")
+                print(f"Coin detected: ₱{coin_value:.2f}, Total: ₱{total_value:.2f}")
             else:
                 print(f"Unknown coin: {pulse_count} pulses")
             pulse_count = 0
