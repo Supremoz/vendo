@@ -61,6 +61,10 @@ running = True
 ir1_triggered = False
 ir2_triggered = False
 
+# Relay activation tracking
+relay1_active = False
+relay2_active = False
+
 def update_button_status():
     """Update the button status LEDs based on available credit"""
     if total_value >= MINIMUM_AMOUNT:
@@ -74,14 +78,15 @@ def update_button_status():
 
 def check_ir_sensors():
     """Check the status of IR sensors and handle relay deactivation if needed"""
-    global ir1_triggered, ir2_triggered
+    global ir1_triggered, ir2_triggered, relay1_active, relay2_active
     
     # Check IR sensor 1
     ir1_state = GPIO.input(IR1_PIN)
     if ir1_state == GPIO.LOW:  # Object detected (LOW when object is present)
-        if not ir1_triggered:
+        if not ir1_triggered and relay1_active:
             print("IR Sensor 1: Object detected - stopping relay 1")
             GPIO.output(RELAY1_PIN, GPIO.HIGH)  # Turn OFF relay immediately
+            relay1_active = False
             ir1_triggered = True
     else:
         if ir1_triggered:
@@ -91,9 +96,10 @@ def check_ir_sensors():
     # Check IR sensor 2
     ir2_state = GPIO.input(IR2_PIN)
     if ir2_state == GPIO.LOW:  # Object detected (LOW when object is present)
-        if not ir2_triggered:
+        if not ir2_triggered and relay2_active:
             print("IR Sensor 2: Object detected - stopping relay 2")
             GPIO.output(RELAY2_PIN, GPIO.HIGH)  # Turn OFF relay immediately
+            relay2_active = False
             ir2_triggered = True
     else:
         if ir2_triggered:
@@ -102,7 +108,7 @@ def check_ir_sensors():
 
 def activate_relay1():
     """Function to activate the first relay"""
-    global total_value
+    global total_value, relay1_active
     
     # Check IR sensor before activating relay
     if GPIO.input(IR1_PIN) == GPIO.LOW:
@@ -112,6 +118,7 @@ def activate_relay1():
     if total_value >= MINIMUM_AMOUNT:
         print("Activating relay 1...")
         GPIO.output(RELAY1_PIN, GPIO.LOW)  # Turn ON relay1
+        relay1_active = True
         
         # Start a monitoring thread for the relay activation
         relay_monitor = threading.Thread(target=monitor_relay_activation, args=(1, RELAY1_PIN, IR1_PIN))
@@ -129,7 +136,7 @@ def activate_relay1():
 
 def activate_relay2():
     """Function to activate the second relay"""
-    global total_value
+    global total_value, relay2_active
     
     # Check IR sensor before activating relay
     if GPIO.input(IR2_PIN) == GPIO.LOW:
@@ -139,6 +146,7 @@ def activate_relay2():
     if total_value >= MINIMUM_AMOUNT:
         print("Activating relay 2...")
         GPIO.output(RELAY2_PIN, GPIO.LOW)  # Turn ON relay2
+        relay2_active = True
         
         # Start a monitoring thread for the relay activation
         relay_monitor = threading.Thread(target=monitor_relay_activation, args=(2, RELAY2_PIN, IR2_PIN))
@@ -156,20 +164,38 @@ def activate_relay2():
 
 def monitor_relay_activation(relay_num, relay_pin, ir_pin):
     """Monitor the IR sensor during relay activation and stop if needed"""
+    global relay1_active, relay2_active
+    
     activation_time = time.time()
     max_activation_time = 5  # Maximum time the relay can stay active (5 seconds)
     
-    while GPIO.output(relay_pin) == GPIO.LOW:  # While relay is active
+    # Use relay_active flags instead of trying to read GPIO output
+    active = True
+    while active:
+        # Update the active state based on relay number
+        if relay_num == 1:
+            active = relay1_active
+        else:
+            active = relay2_active
+            
         # Check if IR sensor detects an object
         if GPIO.input(ir_pin) == GPIO.LOW:
             print(f"IR Sensor {relay_num}: Object detected - stopping relay {relay_num}")
             GPIO.output(relay_pin, GPIO.HIGH)  # Turn OFF relay immediately
+            if relay_num == 1:
+                relay1_active = False
+            else:
+                relay2_active = False
             break
         
         # Check if maximum activation time is reached
         if time.time() - activation_time >= max_activation_time:
             print(f"Maximum activation time reached for relay {relay_num}")
             GPIO.output(relay_pin, GPIO.HIGH)  # Turn OFF relay
+            if relay_num == 1:
+                relay1_active = False
+            else:
+                relay2_active = False
             break
         
         time.sleep(0.05)  # Short delay to reduce CPU usage
