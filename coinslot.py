@@ -8,12 +8,27 @@ GPIO.cleanup()
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-COIN_PIN = 17  # Adjust this to match your connection
-GPIO.setup(COIN_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+# Pin definitions
+COIN_PIN = 17  # Coin acceptor input pin
+BUTTON_PIN = 27  # Button input pin (change as needed)
+RELAY_PIN = 22  # Relay control pin (change as needed)
+LED_PIN = 23  # Optional LED to indicate when button is active
 
+# Setup GPIO pins
+GPIO.setup(COIN_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Button with pull-up resistor
+GPIO.setup(RELAY_PIN, GPIO.OUT)  # Relay control
+GPIO.setup(LED_PIN, GPIO.OUT)  # Status LED
+
+# Initialize outputs
+GPIO.output(RELAY_PIN, GPIO.LOW)  # Relay starts OFF
+GPIO.output(LED_PIN, GPIO.LOW)    # LED starts OFF
+
+# Variables for coin detection
 total_value = 0.0
 pulse_count = 0
 last_pulse_time = 0
+MINIMUM_AMOUNT = 10.0  # Minimum amount required (10 pesos)
 
 # Define peso values based on your H6 calibration
 coin_values = {
@@ -25,11 +40,23 @@ coin_values = {
     10: 10.00    # H6: 10 peso coin (old)
 }
 
+def update_button_status():
+    """Update the button status LED based on available credit"""
+    if total_value >= MINIMUM_AMOUNT:
+        GPIO.output(LED_PIN, GPIO.HIGH)  # Turn ON LED to indicate button is active
+        print(f"Button is now ACTIVE (₱{total_value:.2f} available)")
+    else:
+        GPIO.output(LED_PIN, GPIO.LOW)   # Turn OFF LED
+        print(f"Button is INACTIVE (₱{total_value:.2f} available, need ₱{MINIMUM_AMOUNT-total_value:.2f} more)")
+
 try:
     print("Coin detector active. Insert coins...")
+    print(f"Minimum amount required: ₱{MINIMUM_AMOUNT:.2f}")
     last_state = GPIO.input(COIN_PIN)
+    update_button_status()
     
     while True:
+        # Check for coin pulses
         current_state = GPIO.input(COIN_PIN)
         current_time = time.time()
         
@@ -43,6 +70,7 @@ try:
                         coin_value = coin_values[pulse_count]
                         total_value += coin_value
                         print(f"Coin detected: ₱{coin_value:.2f}, Total: ₱{total_value:.2f}")
+                        update_button_status()
                     else:
                         print(f"Unknown coin: {pulse_count} pulses")
                 pulse_count = 0
@@ -60,9 +88,26 @@ try:
                 coin_value = coin_values[pulse_count]
                 total_value += coin_value
                 print(f"Coin detected: ₱{coin_value:.2f}, Total: ₱{total_value:.2f}")
+                update_button_status()
             else:
                 print(f"Unknown coin: {pulse_count} pulses")
             pulse_count = 0
+        
+        # Check for button press (only if enough credit)
+        if GPIO.input(BUTTON_PIN) == GPIO.LOW:  # Button pressed (LOW because of pull-up)
+            if total_value >= MINIMUM_AMOUNT:
+                print("Button pressed - Activating relay...")
+                GPIO.output(RELAY_PIN, GPIO.HIGH)  # Turn ON relay
+                time.sleep(1)  # Keep relay on for 1 second (adjust as needed)
+                GPIO.output(RELAY_PIN, GPIO.LOW)   # Turn OFF relay
+                
+                # Deduct the amount used (optional, comment out if you want to keep the credit)
+                total_value -= MINIMUM_AMOUNT
+                print(f"Completed action. Remaining credit: ₱{total_value:.2f}")
+                update_button_status()
+            else:
+                print(f"Not enough credit. Need ₱{MINIMUM_AMOUNT-total_value:.2f} more.")
+                time.sleep(0.5)  # Debounce delay
             
         time.sleep(0.01)  # Reduce CPU usage
 
