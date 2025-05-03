@@ -1,9 +1,15 @@
 import RPi.GPIO as GPIO
 import time
 
-# GPIO setup
-COIN_PIN = 17  # GPIO pin connected to the coin acceptor pulse output
-                # Change this to match your actual GPIO pin connection
+# GPIO setup - CHANGE THIS to match your wiring
+COIN_PIN = 17  # GPIO pin connected to the coin acceptor
+
+# Coin values
+COIN_VALUES = {
+    1: 1,    # 1 pulse = 1 peso
+    5: 5,    # 5 pulses = 5 pesos
+    10: 10   # 10 pulses = 10 pesos
+}
 
 # Set up GPIO mode
 GPIO.setmode(GPIO.BCM)
@@ -12,69 +18,56 @@ GPIO.setup(COIN_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 # Variables
 total_amount = 0
 pulse_count = 0
-last_pulse_time = time.time()
-pulse_timeout = 1.0  # Time window to group pulses (1 second)
-last_state = GPIO.input(COIN_PIN)
-debounce_time = 0.05  # 50ms debounce time
+pulse_sequence = []
+last_pulse_time = 0
+pulse_timeout = 2.0  # 2 seconds timeout
+
+# Setup interrupt callback function
+def coin_pulse_detected(channel):
+    global pulse_count, last_pulse_time
+    
+    # Simple debounce
+    current_time = time.time()
+    if (current_time - last_pulse_time) < 0.05:  # 50ms debounce
+        return
+        
+    pulse_count += 1
+    last_pulse_time = current_time
+    print(f"Pulse detected! Count: {pulse_count}")
+
+# Register the interrupt event
+GPIO.add_event_detect(COIN_PIN, GPIO.FALLING, callback=coin_pulse_detected)
 
 print("Coin Counter Started")
 print("Insert coins to see the count")
 
 try:
     while True:
-        # Read current state
-        current_state = GPIO.input(COIN_PIN)
+        # Check if we have pulses and enough time has passed
         current_time = time.time()
         
-        # Check if state changed (pulse detected)
-        if current_state != last_state:
-            # Wait for debounce
-            time.sleep(debounce_time)
-            
-            # Read again after debounce
-            current_state = GPIO.input(COIN_PIN)
-            
-            # If still different from last_state, we have a valid change
-            if current_state != last_state:
-                # Depending on your coin acceptor, you might need to detect
-                # falling edge (1->0) or rising edge (0->1)
-                if last_state == 1 and current_state == 0:  # Falling edge
-                    pulse_count += 1
-                    last_pulse_time = current_time
-                    print(f"Pulse detected! Current pulse count: {pulse_count}")
-                
-                # Update last state
-                last_state = current_state
-        
-        # Check if we should process the pulses (timeout reached)
         if pulse_count > 0 and (current_time - last_pulse_time) > pulse_timeout:
-            # Determine coin type based on pulse count
-            if pulse_count == 1:
-                coin_value = 1
-                coin_type = "1 Peso"
-            elif pulse_count == 5:
-                coin_value = 5
-                coin_type = "5 Pesos"
-            elif pulse_count == 10:
-                coin_value = 10
-                coin_type = "10 Pesos"
-            else:
-                coin_value = 0
-                coin_type = "Unknown coin"
-                print(f"Warning: Received {pulse_count} pulses, which doesn't match any known coin.")
-            
-            # Update total amount if it's a recognized coin
-            if coin_value > 0:
+            # Process the coin
+            if pulse_count in COIN_VALUES:
+                coin_value = COIN_VALUES[pulse_count]
                 total_amount += coin_value
-                print(f"Coin detected: {coin_type}")
-                print(f"Total amount: {total_amount} Pesos")
+                print(f"Recognized coin: {pulse_count} pulses = {coin_value} Pesos")
+            else:
+                print(f"Unknown coin pattern: {pulse_count} pulses")
+                
+            # Record this sequence for debugging
+            pulse_sequence.append(pulse_count)
             
-            # Reset pulse counter for next coin
+            # Reset for next coin
             pulse_count = 0
-        
-        # Small delay to reduce CPU usage
-        time.sleep(0.01)
+            
+            # Display totals
+            print(f"Total amount: {total_amount} Pesos")
+            print(f"Pulse history: {pulse_sequence}")
+            
+        time.sleep(0.1)  # Sleep to reduce CPU usage
 
 except KeyboardInterrupt:
-    print(f"Program ended. Total amount collected: {total_amount} Pesos")
+    print(f"Program ended. Total amount: {total_amount} Pesos")
+    print(f"Pulse sequence history: {pulse_sequence}")
     GPIO.cleanup()
