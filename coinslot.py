@@ -20,8 +20,8 @@ LED1_PIN = 23       # LED to indicate when first button is active
 BUTTON2_PIN = 24    # Second button input pin
 RELAY2_PIN = 25     # Second relay control pin
 LED2_PIN = 26       # LED to indicate when second button is active
-IR1_PIN = 18        # First IR sensor input pin (new)
-IR2_PIN = 19        # Second IR sensor input pin (new)
+IR1_PIN = 18        # First IR sensor input pin
+IR2_PIN = 19        # Second IR sensor input pin
 
 # Setup GPIO pins
 GPIO.setup(COIN_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -31,8 +31,8 @@ GPIO.setup(LED1_PIN, GPIO.OUT)
 GPIO.setup(BUTTON2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(RELAY2_PIN, GPIO.OUT)
 GPIO.setup(LED2_PIN, GPIO.OUT)
-GPIO.setup(IR1_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # New IR sensor 1
-GPIO.setup(IR2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # New IR sensor 2
+GPIO.setup(IR1_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(IR2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # Initialize outputs
 GPIO.output(RELAY1_PIN, GPIO.HIGH)  # Relay1 starts ON
@@ -84,7 +84,9 @@ def check_ir_sensors():
             GPIO.output(RELAY1_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             ir1_triggered = True
     else:
-        ir1_triggered = False
+        if ir1_triggered:
+            print("IR Sensor 1: Path clear")
+            ir1_triggered = False
     
     # Check IR sensor 2
     ir2_state = GPIO.input(IR2_PIN)
@@ -94,7 +96,9 @@ def check_ir_sensors():
             GPIO.output(RELAY2_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             ir2_triggered = True
     else:
-        ir2_triggered = False
+        if ir2_triggered:
+            print("IR Sensor 2: Path clear")
+            ir2_triggered = False
 
 def activate_relay1():
     """Function to activate the first relay"""
