@@ -25,7 +25,7 @@ GPIO.setup(RELAY_PIN, GPIO.OUT)
 GPIO.setup(LED_PIN, GPIO.OUT)
 
 # Initialize outputs
-GPIO.output(RELAY_PIN, GPIO.LOW)  # Relay starts OFF
+GPIO.output(RELAY_PIN, GPIO.HIGH)  # Relay starts ON (changed from LOW to HIGH)
 GPIO.output(LED_PIN, GPIO.LOW)    # LED starts OFF
 
 # Variables for coin detection
@@ -60,9 +60,9 @@ def activate_relay():
     
     if total_value >= MINIMUM_AMOUNT:
         print("Activating relay...")
-        GPIO.output(RELAY_PIN, GPIO.HIGH)  # Turn ON relay
+        GPIO.output(RELAY_PIN, GPIO.LOW)  # Turn ON relay (changed from HIGH to LOW)
         time.sleep(1)  # Keep relay on for 1 second (adjust as needed)
-        GPIO.output(RELAY_PIN, GPIO.LOW)   # Turn OFF relay
+        GPIO.output(RELAY_PIN, GPIO.HIGH)   # Turn OFF relay (changed from LOW to HIGH)
         
         # Deduct the amount used
         total_value -= MINIMUM_AMOUNT
