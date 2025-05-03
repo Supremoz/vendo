@@ -33,15 +33,13 @@ total_value = 0.0
 pulse_count = 0
 last_pulse_time = 0
 MINIMUM_AMOUNT = 10.0  # Minimum amount required (10 pesos)
+keyboard_enabled = False  # Flag to enable keyboard input after initialization
 
 # Define peso values based on calibration
 coin_values = {
     1: 1.00,    # H1: 1 peso coin (new)
-    1: 1.00,    # H2: 1 peso coin (old)
     5: 5.00,    # H3: 5 peso coin (new)
-    5: 5.00,    # H4: 5 peso coin (old)
     10: 10.00,  # H5: 10 peso coin (new)
-    10: 10.00   # H6: 10 peso coin (old)
 }
 
 # Flag to control program execution
@@ -88,13 +86,16 @@ def getch():
 
 def keyboard_monitor():
     """Thread function to monitor keyboard input"""
-    global running
+    global running, keyboard_enabled
     
+    # Wait for system to fully initialize before accepting keyboard input
+    time.sleep(3)
+    keyboard_enabled = True
     print("Keyboard monitor active. Press '1' to activate the button, 'q' to quit.")
     
     while running:
         char = getch()
-        if char == '1':
+        if char == '1' and keyboard_enabled:
             print("Key '1' pressed - attempting to activate button")
             activate_relay()
         elif char == 'q':
@@ -102,17 +103,19 @@ def keyboard_monitor():
             running = False
             break
 
-# Start the keyboard monitoring thread
-keyboard_thread = threading.Thread(target=keyboard_monitor)
-keyboard_thread.daemon = True
-keyboard_thread.start()
-
 try:
+    print("System initializing...")
     print("Coin detector active. Insert coins...")
     print(f"Minimum amount required: ₱{MINIMUM_AMOUNT:.2f}")
-    print("Press '1' to activate button, 'q' to quit")
+    
+    # Start the keyboard monitoring thread AFTER initialization
+    keyboard_thread = threading.Thread(target=keyboard_monitor)
+    keyboard_thread.daemon = True
+    keyboard_thread.start()
+    
     last_state = GPIO.input(COIN_PIN)
     update_button_status()
+    print("System ready! Press '1' to activate button, 'q' to quit")
     
     while running:
         # Check for coin pulses
