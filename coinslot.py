@@ -9,8 +9,8 @@ import json
 from datetime import datetime
 
 # Firebase configuration
-FIREBASE_HOST = "https://crusher-7ae89-default-rtdb.firebaseio.com/"
-FIREBASE_AUTH = ""  # Your Firebase auth token if needed
+FIREBASE_HOST = "https://napkinvendo-default-rtdb.firebaseio.com/"
+FIREBASE_AUTH = "332a5927c0bd1bf572f995558e21b07d348e071d"
 
 # Clean up any previous GPIO setups
 GPIO.cleanup()
