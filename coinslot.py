@@ -4,6 +4,13 @@ import sys
 import tty
 import termios
 import threading
+import requests
+import json
+from datetime import datetime
+
+# Firebase configuration
+FIREBASE_HOST = "https://napkinvendo-default-rtdb.firebaseio.com/"
+FIREBASE_AUTH = "332a5927c0bd1bf572f995558e21b07d348e071d"  # Your Firebase auth token if needed
 
 # Clean up any previous GPIO setups
 GPIO.cleanup()
@@ -65,16 +72,167 @@ ir2_triggered = False
 relay1_active = False
 relay2_active = False
 
+# Inventory tracking
+relay1_inventory = 0
+relay2_inventory = 0
+
+# Firebase communication functions
+def initialize_firebase():
+    """Initialize and fetch data from Firebase"""
+    global relay1_inventory, relay2_inventory
+    
+    try:
+        # Fetch initial inventory values
+        response = requests.get(f"{FIREBASE_HOST}/inventory.json")
+        if response.status_code == 200:
+            data = response.json()
+            if data and 'relay1' in data:
+                relay1_inventory = data['relay1']
+            if data and 'relay2' in data:
+                relay2_inventory = data['relay2']
+            print(f"Firebase connected. Inventory: Relay1={relay1_inventory}, Relay2={relay2_inventory}")
+        else:
+            print(f"Failed to fetch inventory data. Status code: {response.status_code}")
+            
+        # Send initial system status
+        update_system_status()
+        return True
+    except Exception as e:
+        print(f"Firebase initialization error: {e}")
+        return False
+
+def update_inventory():
+    """Update inventory in Firebase"""
+    try:
+        inventory_data = {
+            "relay1": relay1_inventory,
+            "relay2": relay2_inventory
+        }
+        response = requests.patch(f"{FIREBASE_HOST}/inventory.json", data=json.dumps(inventory_data))
+        if response.status_code == 200:
+            print("Inventory updated in Firebase")
+        else:
+            print(f"Failed to update inventory. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Firebase inventory update error: {e}")
+
+def update_transactions(relay_num, amount):
+    """Record transaction in Firebase"""
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        transaction_data = {
+            "relay": relay_num,
+            "amount": amount,
+            "timestamp": timestamp
+        }
+        # Use push() equivalent for HTTP requests to add to list
+        response = requests.post(f"{FIREBASE_HOST}/transactions.json", data=json.dumps(transaction_data))
+        if response.status_code == 200:
+            print(f"Transaction recorded: Relay {relay_num}, ₱{amount:.2f}")
+        else:
+            print(f"Failed to record transaction. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Firebase transaction recording error: {e}")
+
+def update_money_collected(amount):
+    """Update money collection in Firebase"""
+    try:
+        # Get current total first
+        response = requests.get(f"{FIREBASE_HOST}/money_collected.json")
+        current_total = 0
+        if response.status_code == 200 and response.json() is not None:
+            current_total = float(response.json())
+        
+        # Update with new amount
+        new_total = current_total + amount
+        response = requests.put(f"{FIREBASE_HOST}/money_collected.json", data=json.dumps(new_total))
+        if response.status_code == 200:
+            print(f"Money collected updated: ₱{new_total:.2f}")
+        else:
+            print(f"Failed to update money collected. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Firebase money collection update error: {e}")
+
+def update_system_status():
+    """Update system status in Firebase"""
+    try:
+        status_data = {
+            "total_value": total_value,
+            "relay1_active": relay1_active,
+            "relay2_active": relay2_active,
+            "relay1_inventory": relay1_inventory,
+            "relay2_inventory": relay2_inventory,
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        response = requests.patch(f"{FIREBASE_HOST}/system_status.json", data=json.dumps(status_data))
+        if response.status_code == 200:
+            print("System status updated in Firebase")
+        else:
+            print(f"Failed to update system status. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Firebase status update error: {e}")
+
+def check_firebase_updates():
+    """Thread function to periodically check for updates from Firebase"""
+    global relay1_inventory, relay2_inventory, running
+    
+    while running:
+        try:
+            response = requests.get(f"{FIREBASE_HOST}/inventory.json")
+            if response.status_code == 200:
+                data = response.json()
+                if data:
+                    # Update local inventory if changed in Firebase
+                    if 'relay1' in data and relay1_inventory != data['relay1']:
+                        relay1_inventory = data['relay1']
+                        print(f"Relay 1 inventory updated from Firebase: {relay1_inventory}")
+                    if 'relay2' in data and relay2_inventory != data['relay2']:
+                        relay2_inventory = data['relay2']
+                        print(f"Relay 2 inventory updated from Firebase: {relay2_inventory}")
+            
+            # Check for remote commands
+            response = requests.get(f"{FIREBASE_HOST}/commands.json")
+            if response.status_code == 200:
+                commands = response.json()
+                if commands:
+                    if 'shutdown' in commands and commands['shutdown']:
+                        print("Remote shutdown command received")
+                        running = False
+                        
+                    # Reset commands after processing
+                    requests.put(f"{FIREBASE_HOST}/commands.json", data=json.dumps({"shutdown": False}))
+                        
+        except Exception as e:
+            print(f"Error checking Firebase updates: {e}")
+        
+        # Check every 5 seconds
+        time.sleep(5)
+
 def update_button_status():
-    """Update the button status LEDs based on available credit"""
-    if total_value >= MINIMUM_AMOUNT:
-        GPIO.output(LED1_PIN, GPIO.HIGH)  # Turn ON LED1 to indicate button1 is active
-        GPIO.output(LED2_PIN, GPIO.HIGH)  # Turn ON LED2 to indicate button2 is active
-        print(f"Both buttons are now ACTIVE (₱{total_value:.2f} available)")
+    """Update the button status LEDs based on available credit and inventory"""
+    # Check both credit and inventory conditions
+    relay1_available = total_value >= MINIMUM_AMOUNT and relay1_inventory > 0
+    relay2_available = total_value >= MINIMUM_AMOUNT and relay2_inventory > 0
+    
+    # Update LED status based on availability
+    GPIO.output(LED1_PIN, GPIO.HIGH if relay1_available else GPIO.LOW)
+    GPIO.output(LED2_PIN, GPIO.HIGH if relay2_available else GPIO.LOW)
+    
+    # Print status update
+    if relay1_available and relay2_available:
+        print(f"Both buttons are ACTIVE (₱{total_value:.2f} available)")
+    elif relay1_available:
+        print(f"Only Button 1 ACTIVE (₱{total_value:.2f} available, Relay 2 out of stock)")
+    elif relay2_available:
+        print(f"Only Button 2 ACTIVE (₱{total_value:.2f} available, Relay 1 out of stock)")
     else:
-        GPIO.output(LED1_PIN, GPIO.LOW)   # Turn OFF LED1
-        GPIO.output(LED2_PIN, GPIO.LOW)   # Turn OFF LED2
-        print(f"Buttons are INACTIVE (₱{total_value:.2f} available, need ₱{MINIMUM_AMOUNT-total_value:.2f} more)")
+        if total_value < MINIMUM_AMOUNT:
+            print(f"Buttons are INACTIVE (₱{total_value:.2f} available, need ₱{MINIMUM_AMOUNT-total_value:.2f} more)")
+        else:
+            print("Buttons are INACTIVE (Out of stock)")
+    
+    # Update system status in Firebase
+    update_system_status()
 
 def check_ir_sensors():
     """Check the status of IR sensors and handle relay deactivation if needed"""
@@ -88,6 +246,7 @@ def check_ir_sensors():
             GPIO.output(RELAY1_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             relay1_active = False
             ir1_triggered = True
+            update_system_status()  # Update Firebase about relay state change
     else:
         if ir1_triggered:
             print("IR Sensor 1: Path clear")
@@ -101,6 +260,7 @@ def check_ir_sensors():
             GPIO.output(RELAY2_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             relay2_active = False
             ir2_triggered = True
+            update_system_status()  # Update Firebase about relay state change
     else:
         if ir2_triggered:
             print("IR Sensor 2: Path clear")
@@ -108,17 +268,21 @@ def check_ir_sensors():
 
 def activate_relay1():
     """Function to activate the first relay"""
-    global total_value, relay1_active
+    global total_value, relay1_active, relay1_inventory
     
     # Check IR sensor before activating relay
     if GPIO.input(IR1_PIN) == GPIO.LOW:
         print("Cannot activate relay 1: Object detected by IR sensor 1")
         return False
     
-    if total_value >= MINIMUM_AMOUNT:
+    # Check both credit and inventory
+    if total_value >= MINIMUM_AMOUNT and relay1_inventory > 0:
         print("Activating relay 1...")
         GPIO.output(RELAY1_PIN, GPIO.LOW)  # Turn ON relay1
         relay1_active = True
+        
+        # Update inventory in local tracking
+        relay1_inventory -= 1
         
         # Start a monitoring thread for the relay activation
         relay_monitor = threading.Thread(target=monitor_relay_activation, args=(1, RELAY1_PIN, IR1_PIN))
@@ -127,26 +291,42 @@ def activate_relay1():
         
         # Deduct the amount used
         total_value -= MINIMUM_AMOUNT
-        print(f"Relay 1 activated. Remaining credit: ₱{total_value:.2f}")
+        
+        # Record this transaction
+        update_transactions(1, MINIMUM_AMOUNT)
+        update_money_collected(MINIMUM_AMOUNT)
+        
+        # Update Firebase with new inventory and system status
+        update_inventory()
+        update_system_status()
+        
+        print(f"Relay 1 activated. Remaining credit: ₱{total_value:.2f}, Inventory: {relay1_inventory}")
         update_button_status()
         return True
     else:
-        print(f"Not enough credit. Need ₱{MINIMUM_AMOUNT-total_value:.2f} more.")
+        if total_value < MINIMUM_AMOUNT:
+            print(f"Not enough credit. Need ₱{MINIMUM_AMOUNT-total_value:.2f} more.")
+        else:
+            print("Relay 1 is out of stock.")
         return False
 
 def activate_relay2():
     """Function to activate the second relay"""
-    global total_value, relay2_active
+    global total_value, relay2_active, relay2_inventory
     
     # Check IR sensor before activating relay
     if GPIO.input(IR2_PIN) == GPIO.LOW:
         print("Cannot activate relay 2: Object detected by IR sensor 2")
         return False
     
-    if total_value >= MINIMUM_AMOUNT:
+    # Check both credit and inventory
+    if total_value >= MINIMUM_AMOUNT and relay2_inventory > 0:
         print("Activating relay 2...")
         GPIO.output(RELAY2_PIN, GPIO.LOW)  # Turn ON relay2
         relay2_active = True
+        
+        # Update inventory in local tracking
+        relay2_inventory -= 1
         
         # Start a monitoring thread for the relay activation
         relay_monitor = threading.Thread(target=monitor_relay_activation, args=(2, RELAY2_PIN, IR2_PIN))
@@ -155,11 +335,23 @@ def activate_relay2():
         
         # Deduct the amount used
         total_value -= MINIMUM_AMOUNT
-        print(f"Relay 2 activated. Remaining credit: ₱{total_value:.2f}")
+        
+        # Record this transaction
+        update_transactions(2, MINIMUM_AMOUNT)
+        update_money_collected(MINIMUM_AMOUNT)
+        
+        # Update Firebase with new inventory and system status
+        update_inventory()
+        update_system_status()
+        
+        print(f"Relay 2 activated. Remaining credit: ₱{total_value:.2f}, Inventory: {relay2_inventory}")
         update_button_status()
         return True
     else:
-        print(f"Not enough credit. Need ₱{MINIMUM_AMOUNT-total_value:.2f} more.")
+        if total_value < MINIMUM_AMOUNT:
+            print(f"Not enough credit. Need ₱{MINIMUM_AMOUNT-total_value:.2f} more.")
+        else:
+            print("Relay 2 is out of stock.")
         return False
 
 def monitor_relay_activation(relay_num, relay_pin, ir_pin):
@@ -186,6 +378,7 @@ def monitor_relay_activation(relay_num, relay_pin, ir_pin):
                 relay1_active = False
             else:
                 relay2_active = False
+            update_system_status()  # Update Firebase about relay state change
             break
         
         # Check if maximum activation time is reached
@@ -196,6 +389,7 @@ def monitor_relay_activation(relay_num, relay_pin, ir_pin):
                 relay1_active = False
             else:
                 relay2_active = False
+            update_system_status()  # Update Firebase about relay state change
             break
         
         time.sleep(0.05)  # Short delay to reduce CPU usage
@@ -237,6 +431,18 @@ def keyboard_monitor():
 
 try:
     print("System initializing...")
+    print("Connecting to Firebase...")
+    
+    # Initialize Firebase connection
+    firebase_ready = initialize_firebase()
+    if not firebase_ready:
+        print("Warning: Firebase connection failed. System will run in offline mode.")
+    
+    # Start Firebase monitoring thread
+    firebase_thread = threading.Thread(target=check_firebase_updates)
+    firebase_thread.daemon = True
+    firebase_thread.start()
+    
     print("Coin detector active. Insert coins...")
     print(f"Minimum amount required: ₱{MINIMUM_AMOUNT:.2f}")
     print("IR sensors active. Will stop relays when objects are detected.")
@@ -269,6 +475,9 @@ try:
                         total_value += coin_value
                         print(f"Coin detected: ₱{coin_value:.2f}, Total: ₱{total_value:.2f}")
                         update_button_status()
+                        
+                        # Update money collected in Firebase
+                        update_money_collected(coin_value)
                     else:
                         print(f"Unknown coin: {pulse_count} pulses")
                 pulse_count = 0
@@ -287,6 +496,9 @@ try:
                 total_value += coin_value
                 print(f"Coin detected: ₱{coin_value:.2f}, Total: ₱{total_value:.2f}")
                 update_button_status()
+                
+                # Update money collected in Firebase
+                update_money_collected(coin_value)
             else:
                 print(f"Unknown coin: {pulse_count} pulses")
             pulse_count = 0
@@ -308,6 +520,8 @@ except KeyboardInterrupt:
     print("Program interrupted")
 finally:
     running = False
+    # Final update to Firebase before exit
+    update_system_status()
     time.sleep(0.5)  # Give threads time to close
     GPIO.cleanup()
     print("Program ended. GPIO cleaned up.")
