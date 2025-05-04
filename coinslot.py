@@ -24,9 +24,9 @@ COIN_PIN = 17       # Coin acceptor input pin
 BUTTON1_PIN = 27    # First button input pin
 RELAY1_PIN = 22     # First relay control pin
 LED1_PIN = 23       # LED to indicate when first button is active
-BUTTON2_PIN = 24    # Second button input pin
+BUTTON2_PIN = 26    # Second button input pin
 RELAY2_PIN = 25     # Second relay control pin
-LED2_PIN = 26       # LED to indicate when second button is active
+LED2_PIN = 24       # LED to indicate when second button is active
 IR1_PIN = 18        # First IR sensor input pin
 IR2_PIN = 19        # Second IR sensor input pin
 
