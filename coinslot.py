@@ -9,8 +9,8 @@ import json
 from datetime import datetime
 
 # Firebase configuration
-FIREBASE_HOST = "https://napkinvendo-default-rtdb.firebaseio.com/"
-FIREBASE_AUTH = "332a5927c0bd1bf572f995558e21b07d348e071d"  # Your Firebase auth token if needed
+FIREBASE_HOST = "https://crusher-7ae89-default-rtdb.firebaseio.com/"
+FIREBASE_AUTH = ""  # Your Firebase auth token if needed
 
 # Clean up any previous GPIO setups
 GPIO.cleanup()
@@ -292,9 +292,9 @@ def activate_relay1():
         # Deduct the amount used
         total_value -= MINIMUM_AMOUNT
         
-        # Record this transaction
+        # Record this transaction without adding to money_collected
         update_transactions(1, MINIMUM_AMOUNT)
-        update_money_collected(MINIMUM_AMOUNT)
+        # NOT calling update_money_collected here as requested
         
         # Update Firebase with new inventory and system status
         update_inventory()
@@ -336,9 +336,9 @@ def activate_relay2():
         # Deduct the amount used
         total_value -= MINIMUM_AMOUNT
         
-        # Record this transaction
+        # Record this transaction without adding to money_collected
         update_transactions(2, MINIMUM_AMOUNT)
-        update_money_collected(MINIMUM_AMOUNT)
+        # NOT calling update_money_collected here as requested
         
         # Update Firebase with new inventory and system status
         update_inventory()
