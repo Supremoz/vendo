@@ -37,6 +37,7 @@ BUTTON2_PIN = 26    # Second button input pin
 RELAY2_PIN = 25     # Second relay control pin
 LED2_PIN = 24       # LED to indicate when second button is active
 IR1_PIN = 18        # First IR sensor input pin
+
 IR2_PIN = 19        # Second IR sensor input pin
 
 # Setup GPIO pins
@@ -304,12 +305,13 @@ def update_button_status():
 def check_ir_sensors():
     """Check the status of IR sensors and handle relay deactivation if needed"""
     global ir1_triggered, ir2_triggered, relay1_active, relay2_active
-    
+
     # Check IR sensor 1
     ir1_state = GPIO.input(IR1_PIN)
     if ir1_state == GPIO.LOW:  # Object detected (LOW when object is present)
         if not ir1_triggered and relay1_active:
             print("IR Sensor 1: Object detected - stopping relay 1")
+            time.sleep(1)  # <-- Add 1 second delay before stopping relay
             GPIO.output(RELAY1_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             relay1_active = False
             ir1_triggered = True
@@ -319,12 +321,13 @@ def check_ir_sensors():
         if ir1_triggered:
             print("IR Sensor 1: Path clear")
             ir1_triggered = False
-    
+
     # Check IR sensor 2
     ir2_state = GPIO.input(IR2_PIN)
     if ir2_state == GPIO.LOW:  # Object detected (LOW when object is present)
         if not ir2_triggered and relay2_active:
             print("IR Sensor 2: Object detected - stopping relay 2")
+            time.sleep(1)  # <-- Add 1 second delay before stopping relay
             GPIO.output(RELAY2_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             relay2_active = False
             ir2_triggered = True
@@ -434,10 +437,10 @@ def activate_relay2():
 def monitor_relay_activation(relay_num, relay_pin, ir_pin):
     """Monitor the IR sensor during relay activation and stop if needed"""
     global relay1_active, relay2_active
-    
+
     activation_time = time.time()
     max_activation_time = 5  # Maximum time the relay can stay active (5 seconds)
-    
+
     # Use relay_active flags instead of trying to read GPIO output
     active = True
     while active:
@@ -446,10 +449,11 @@ def monitor_relay_activation(relay_num, relay_pin, ir_pin):
             active = relay1_active
         else:
             active = relay2_active
-            
+
         # Check if IR sensor detects an object
         if GPIO.input(ir_pin) == GPIO.LOW:
             print(f"IR Sensor {relay_num}: Object detected - stopping relay {relay_num}")
+            time.sleep(1)  # <-- Add 1 second delay before stopping relay
             GPIO.output(relay_pin, GPIO.HIGH)  # Turn OFF relay immediately
             if relay_num == 1:
                 relay1_active = False
@@ -457,7 +461,7 @@ def monitor_relay_activation(relay_num, relay_pin, ir_pin):
                 relay2_active = False
             update_system_status()  # Update Firebase about relay state change
             break
-        
+
         # Check if maximum activation time is reached
         if time.time() - activation_time >= max_activation_time:
             print(f"Maximum activation time reached for relay {relay_num}")
@@ -469,9 +473,9 @@ def monitor_relay_activation(relay_num, relay_pin, ir_pin):
             display_message("Timeout", "Please try again")
             update_system_status()  # Update Firebase about relay state change
             break
-        
+
         time.sleep(0.05)  # Short delay to reduce CPU usage
-    
+
     print(f"Relay {relay_num} monitoring ended")
     update_lcd()  # Update LCD after relay operation completes
 
