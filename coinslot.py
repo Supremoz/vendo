@@ -439,7 +439,7 @@ def monitor_relay_activation(relay_num, relay_pin, ir_pin):
     global relay1_active, relay2_active
 
     activation_time = time.time()
-    max_activation_time = 5  # Maximum time the relay can stay active (5 seconds)
+    max_activation_time = 10  # Maximum time the relay can stay active (10 seconds)
 
     # Use relay_active flags instead of trying to read GPIO output
     active = True
