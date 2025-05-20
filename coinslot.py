@@ -17,6 +17,8 @@ lcd = CharLCD(i2c_expander='PCF8574', address=LCD_ADDRESS, port=1,
               auto_linebreaks=True,
               backlight_enabled=True)
 
+lcd_lock = threading.Lock()  # <-- Add this line
+
 # Firebase configuration
 FIREBASE_HOST = "https://napkinvendo-default-rtdb.firebaseio.com/"
 FIREBASE_AUTH = "332a5927c0bd1bf572f995558e21b07d348e071d"
@@ -89,38 +91,38 @@ relay2_inventory = 0
 # LCD Functions
 def update_lcd():
     """Update LCD display with current status"""
-    lcd.clear()
-    
-    # First line: Credit information
-    lcd.cursor_pos = (0, 0)
-    lcd.write_string(f"Credit: P{total_value:.2f}")
-    
-    # Second line: Status or inventory info
-    lcd.cursor_pos = (1, 0)
-    
-    # Show inventory status
-    if relay1_inventory <= 0 and relay2_inventory <= 0:
-        lcd.write_string("Out of stock!")
-    elif total_value < MINIMUM_AMOUNT:
-        lcd.write_string(f"Need P{MINIMUM_AMOUNT-total_value:.2f} more")
-    else:
-        # Show available options
-        available_text = ""
-        if relay1_inventory > 0:
-            available_text += "B1:Ready "
-        if relay2_inventory > 0:
-            available_text += "B2:Ready"
-        lcd.write_string(available_text)
+    with lcd_lock:  # <-- Add this line
+        lcd.clear()
+        # First line: Credit information
+        lcd.cursor_pos = (0, 0)
+        lcd.write_string(f"Credit: P{total_value:.2f}")
+
+        # Second line: Status or inventory info
+        lcd.cursor_pos = (1, 0)
+        # Show inventory status
+        if relay1_inventory <= 0 and relay2_inventory <= 0:
+            lcd.write_string("Out of stock!")
+        elif total_value < MINIMUM_AMOUNT:
+            lcd.write_string(f"Need P{MINIMUM_AMOUNT-total_value:.2f} more")
+        else:
+            # Show available options
+            available_text = ""
+            if relay1_inventory > 0:
+                available_text += "B1:Ready "
+            if relay2_inventory > 0:
+                available_text += "B2:Ready"
+            lcd.write_string(available_text)
 
 def display_message(line1, line2=""):
     """Display a temporary message on the LCD"""
-    lcd.clear()
-    lcd.cursor_pos = (0, 0)
-    lcd.write_string(line1[:16])  # Limit to 16 chars
-    if line2:
-        lcd.cursor_pos = (1, 0)
-        lcd.write_string(line2[:16])  # Limit to 16 chars
-    
+    with lcd_lock:  # <-- Add this line
+        lcd.clear()
+        lcd.cursor_pos = (0, 0)
+        lcd.write_string(line1[:16])  # Limit to 16 chars
+        if line2:
+            lcd.cursor_pos = (1, 0)
+            lcd.write_string(line2[:16])  # Limit to 16 chars
+
     # Schedule to return to normal display after 2 seconds
     threading.Timer(2.0, update_lcd).start()
 
