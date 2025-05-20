@@ -1,0 +1,15 @@
+[Unit]
+Description=Vending Machine Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/Desktop/vendo/coinslot.py
+WorkingDirectory=/home/pi/Desktop/vendo
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
