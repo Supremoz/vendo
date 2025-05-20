@@ -31,7 +31,7 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
 # Pin definitions
-COIN_PIN = 17       # Coin acceptor input pin
+COIN_PIN = 14       # Coin acceptor input pin
 BUTTON1_PIN = 27    # First button input pin
 RELAY1_PIN = 22     # First relay control pin
 LED1_PIN = 23       # LED to indicate when first button is active
@@ -313,7 +313,7 @@ def check_ir_sensors():
     if ir1_state == GPIO.LOW:  # Object detected (LOW when object is present)
         if not ir1_triggered and relay1_active:
             print("IR Sensor 1: Object detected - stopping relay 1")
-            time.sleep(1)  # <-- Add 1 second delay before stopping relay
+            time.sleep(2)  # <-- Add 1 second delay before stopping relay
             GPIO.output(RELAY1_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             relay1_active = False
             ir1_triggered = True
@@ -329,7 +329,7 @@ def check_ir_sensors():
     if ir2_state == GPIO.LOW:  # Object detected (LOW when object is present)
         if not ir2_triggered and relay2_active:
             print("IR Sensor 2: Object detected - stopping relay 2")
-            time.sleep(1)  # <-- Add 1 second delay before stopping relay
+            time.sleep(2)  # <-- Add 1 second delay before stopping relay
             GPIO.output(RELAY2_PIN, GPIO.HIGH)  # Turn OFF relay immediately
             relay2_active = False
             ir2_triggered = True
@@ -455,7 +455,7 @@ def monitor_relay_activation(relay_num, relay_pin, ir_pin):
         # Check if IR sensor detects an object
         if GPIO.input(ir_pin) == GPIO.LOW:
             print(f"IR Sensor {relay_num}: Object detected - stopping relay {relay_num}")
-            time.sleep(1)  # <-- Add 1 second delay before stopping relay
+            time.sleep(2)  # <-- Add 1 second delay before stopping relay
             GPIO.output(relay_pin, GPIO.HIGH)  # Turn OFF relay immediately
             if relay_num == 1:
                 relay1_active = False
